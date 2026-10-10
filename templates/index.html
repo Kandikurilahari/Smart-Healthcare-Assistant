@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Healthcare Assistant</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <span class="icon">🏥</span>
+                <h1>Smart Healthcare Assistant</h1>
+            </div>
+            <p class="subtitle">Enter your symptoms to get disease predictions and management suggestions</p>
+        </header>
+
+        <main>
+            <div class="input-section">
+                <div class="form-group">
+                    <label for="symptoms">Enter your symptoms (separated by commas):</label>
+                    <textarea 
+                        id="symptoms" 
+                        placeholder="e.g., fever, cough, headache, fatigue, sore throat"
+                        rows="4"
+                    ></textarea>
+                    <p class="hint">Example: fever, cough, headache, fatigue</p>
+                </div>
+
+                <button id="analyzeBtn" class="btn-primary">
+                    <span>Analyze Symptoms</span>
+                    <span class="icon">🔍</span>
+                </button>
+            </div>
+
+            <div id="loading" class="loading hidden">
+                <div class="spinner"></div>
+                <p>Analyzing your symptoms...</p>
+            </div>
+
+            <div id="results" class="results-section hidden">
+                <h2>Possible Conditions</h2>
+                <div id="resultsList"></div>
+            </div>
+
+            <div id="error" class="error-message hidden"></div>
+
+            <div class="info-section">
+                <h3>⚠️ Important Disclaimer</h3>
+                <p>
+                    This tool is for educational purposes only and should not be used as a substitute for 
+                    professional medical advice, diagnosis, or treatment. Always seek the advice of your 
+                    physician or other qualified health provider with any questions you may have regarding 
+                    a medical condition.
+                </p>
+            </div>
+
+            <div class="supported-diseases">
+                <h3>Supported Conditions</h3>
+                <button id="toggleDiseases" class="btn-secondary">View All Conditions</button>
+                <div id="diseasesList" class="diseases-list hidden"></div>
+            </div>
+        </main>
+
+        <footer>
+            <p>© 2024 Smart Healthcare Assistant | Built with Flask & Python</p>
+        </footer>
+    </div>
+
+    <script>
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const symptomsInput = document.getElementById('symptoms');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const resultsList = document.getElementById('resultsList');
+        const error = document.getElementById('error');
+        const toggleDiseasesBtn = document.getElementById('toggleDiseases');
+        const diseasesList = document.getElementById('diseasesList');
+
+        // Analyze symptoms when button is clicked
+        analyzeBtn.addEventListener('click', async () => {
+            const symptoms = symptomsInput.value.trim();
+            
+            if (!symptoms) {
+                showError('Please enter at least one symptom');
+                return;
+            }
+
+            // Show loading, hide previous results
+            loading.classList.remove('hidden');
+            results.classList.add('hidden');
+            error.classList.add('hidden');
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ symptoms: symptoms })
+                });
+
+                const data = await response.json();
+
+                loading.classList.add('hidden');
+
+                if (response.ok) {
+                    displayResults(data.results);
+                } else {
+                    showError(data.error || 'An error occurred');
+                }
+            } catch (err) {
+                loading.classList.add('hidden');
+                showError('Failed to connect to the server. Please try again.');
+            }
+        });
+
+        // Display results
+        function displayResults(results) {
+            resultsList.innerHTML = results.map((result, index) => `
+                <div class="result-card ${getSeverityClass(result.severity)}">
+                    <div class="result-header">
+                        <h3>${index + 1}. ${result.disease}</h3>
+                        <span class="match-badge">${result.match_percentage}% match</span>
+                    </div>
+                    <div class="severity-indicator">
+                        <span class="severity-label">Severity:</span>
+                        <span class="severity-value ${result.severity.replace(/\s+/g, '-')}">${result.severity}</span>
+                    </div>
+                    <div class="management-section">
+                        <h4>💡 Management Suggestions:</h4>
+                        <ul>
+                            ${result.management.map(suggestion => `<li>${suggestion}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div class="doctor-section">
+                        <h4>👨‍⚕️ When to see a doctor:</h4>
+                        <p>${result.when_to_see_doctor}</p>
+                    </div>
+                </div>
+            `).join('');
+
+            results.classList.remove('hidden');
+        }
+
+        // Get CSS class based on severity
+        function getSeverityClass(severity) {
+            if (severity.includes('severe')) return 'severity-severe';
+            if (severity.includes('moderate')) return 'severity-moderate';
+            return 'severity-mild';
+        }
+
+        // Show error message
+        function showError(message) {
+            error.textContent = message;
+            error.classList.remove('hidden');
+        }
+
+        // Toggle diseases list
+        toggleDiseasesBtn.addEventListener('click', async () => {
+            if (diseasesList.classList.contains('hidden')) {
+                try {
+                    const response = await fetch('/diseases');
+                    const data = await response.json();
+                    
+                    diseasesList.innerHTML = data.diseases.map(disease => 
+                        `<span class="disease-tag">${disease}</span>`
+                    ).join('');
+                    
+                    diseasesList.classList.remove('hidden');
+                    toggleDiseasesBtn.textContent = 'Hide Conditions';
+                } catch (err) {
+                    showError('Failed to load diseases list');
+                }
+            } else {
+                diseasesList.classList.add('hidden');
+                toggleDiseasesBtn.textContent = 'View All Conditions';
+            }
+        });
+
+        // Allow Enter key to submit (with Ctrl or Cmd)
+        symptomsInput.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                analyzeBtn.click();
+            }
+        });
+    </script>
+</body>
+</html>
